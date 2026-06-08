@@ -3,7 +3,7 @@
 all: test
 
 .install-deps: $(shell find requirements -type f)
-	@pip install -U -r requirements/dev.txt
+	@pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -U -r requirements/dev.txt
 	@touch .install-deps
 
 isort:
@@ -32,7 +32,7 @@ check_changes:
 	@./tools/check_changes.py
 
 .develop: .install-deps $(shell find aiohttp -type f) .flake check_changes
-	@pip install -e .
+	@pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -e .
 	@touch .develop
 
 test: .develop
@@ -112,7 +112,7 @@ doc-spelling:
 	@make -C docs spelling SPHINXOPTS="-W -E"
 
 install:
-	@pip install -U pip
-	@pip install -Ur requirements/dev.txt
+	@pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -U pip
+	@pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -Ur requirements/dev.txt
 
 .PHONY: all build flake test vtest cov clean doc

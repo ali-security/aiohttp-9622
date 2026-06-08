@@ -336,7 +336,7 @@ library first:
 
 .. code-block:: shell
 
-   $ pip install aiohttp_jinja2
+   $ pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' aiohttp_jinja2
 
 After installing we need to setup the library::
 

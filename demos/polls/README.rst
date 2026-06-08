@@ -10,7 +10,7 @@ Installation
 Install the app::
 
     $ cd demos/polls
-    $ pip install -e .
+    $ pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -e .
 
 Create database for your project::
 
@@ -31,7 +31,7 @@ Open browser::
 
 Run integration tests::
 
-  pip install tox
+  pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' tox
   tox
 
 

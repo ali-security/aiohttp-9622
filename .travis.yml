@@ -10,8 +10,8 @@ python:
 - &pypy3 pypy3.5
 
 install:
-- &upgrade_python_toolset pip install --upgrade pip wheel setuptools
-- pip install -r requirements/ci.txt
+- &upgrade_python_toolset pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' --upgrade pip wheel setuptools
+- pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -r requirements/ci.txt
 
 script:
 - make cov-ci-no-ext
@@ -36,12 +36,12 @@ _helpers:
   <<: *_reset_steps
   install:
   - *upgrade_python_toolset
-  - pip install -U -r requirements/ci.txt
+  - pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -U -r requirements/ci.txt
 - &_doc_base
   <<: *_lint_base
   install:
   - *upgrade_python_toolset
-  - pip install -U -r requirements/ci.txt -r requirements/doc.txt -r requirements/doc-spelling.txt
+  - pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -U -r requirements/ci.txt -r requirements/doc.txt -r requirements/doc-spelling.txt
   after_failure: cat docs/_build/spelling/output.txt
   addons:
     apt:
@@ -157,7 +157,7 @@ jobs:
     - dist setup check
     install:
     - *upgrade_python_toolset
-    - pip install -r requirements/doc.txt
+    - pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -r requirements/doc.txt
     script:
     - python setup.py check --metadata --restructuredtext --strict --verbose
 
@@ -197,7 +197,7 @@ jobs:
     - docker
     script:
     - ./tools/run_docker.sh "aiohttp"
-    - pip install -r requirements/ci.txt  # to compile *.c files by Cython
+    - pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -r requirements/ci.txt  # to compile *.c files by Cython
     deploy:
       provider: pypi
       # `skip_cleanup: true` is required to preserve binary wheels, built

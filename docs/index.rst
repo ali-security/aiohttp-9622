@@ -30,14 +30,14 @@ Library Installation
 
 .. code-block:: bash
 
-   $ pip install aiohttp
+   $ pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' aiohttp
 
 You may want to install *optional* :term:`cchardet` library as faster
 replacement for :term:`chardet`:
 
 .. code-block:: bash
 
-   $ pip install cchardet
+   $ pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' cchardet
 
 For speeding up DNS resolving by client API you may install
 :term:`aiodns` as well.
@@ -45,7 +45,7 @@ This option is highly recommended:
 
 .. code-block:: bash
 
-   $ pip install aiodns
+   $ pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' aiodns
 
 Getting Started
 ===============
@@ -131,14 +131,14 @@ Dependencies
 
   .. code-block:: bash
 
-     $ pip install cchardet
+     $ pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' cchardet
 
 - *Optional* :term:`aiodns` for fast DNS resolving. The
   library is highly recommended.
 
   .. code-block:: bash
 
-     $ pip install aiodns
+     $ pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' aiodns
 
 
 Communication channels

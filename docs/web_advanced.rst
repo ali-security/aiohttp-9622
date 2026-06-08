@@ -843,7 +843,7 @@ Install it via ``pip``:
 
 .. code-block:: shell
 
-    $ pip install aiohttp_debugtoolbar
+    $ pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' aiohttp_debugtoolbar
 
 
 After that attach the :mod:`aiohttp_debugtoolbar` middleware to your
@@ -871,7 +871,7 @@ Install via ``pip``:
 
 .. code-block:: shell
 
-    $ pip install aiohttp-devtools
+    $ pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' aiohttp-devtools
 
    * ``runserver`` provides a development server with auto-reload,
   live-reload, static file serving and aiohttp_debugtoolbar_

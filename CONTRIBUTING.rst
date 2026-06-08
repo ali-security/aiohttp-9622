@@ -61,7 +61,7 @@ After that please install libraries required for development:
 
 .. code-block:: shell
 
-   $ pip install -r requirements/dev.txt
+   $ pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -r requirements/dev.txt
 
 .. note::
   If you plan to use ``pdb`` or ``ipdb`` within the test suite, execute:
@@ -155,7 +155,7 @@ To run spell checker on Linux box you should install it first:
 .. code-block:: shell
 
    $ sudo apt-get install enchant
-   $ pip install sphinxcontrib-spelling
+   $ pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' sphinxcontrib-spelling
 
 Changelog update
 ----------------

@@ -12,6 +12,7 @@ Async http client/server framework
    :align: right
    :alt: Travis status for master branch
 
+
 .. image:: https://codecov.io/gh/aio-libs/aiohttp/branch/master/graph/badge.svg
    :target: https://codecov.io/gh/aio-libs/aiohttp
    :alt: codecov.io status for master branch
