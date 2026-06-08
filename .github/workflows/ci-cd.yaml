@@ -54,16 +54,20 @@ jobs:
       image: python:${{ matrix.python-version }}
     steps:
       - uses: actions/checkout@v3
-      - run: python -m pip install -U pip wheel setuptools
+      - run: python -m pip install -U pip wheel
+      # Pin setuptools<46 — the python:3.5/3.6 image ships setuptools 50+,
+      # but towncrier 17.8.0 (via ci-wheel.txt) pulls in old Jinja2 → ancient
+      # MarkupSafe 1.0 sdist, whose setup.py does `from setuptools import
+      # Feature`. `Feature` was removed in setuptools 46. 45.x is the last
+      # series with it and the last to support Python 3.5.
+      - run: python -m pip install 'setuptools<46'
       # Pre-install Cython into the env so that --no-build-isolation has
       # what `setup.py` imports. Build isolation must be disabled because the
       # PEP 517 isolated env would otherwise pull `setuptools>=40.8.0` from
       # the 2018-03-13 time-machine index, which only has setuptools <=38.5.2.
       - run: python -m pip install cython==0.27.3
-      # Skip requirements/ci.txt's `-r doc.txt`: it pulls Sphinx 1.6.6 →
-      # old Jinja2 → ancient markupsafe sdist whose setup.py does
-      # `from setuptools import Feature`, removed in setuptools 46.
-      # Tests don't need Sphinx anyway.
+      # Skip requirements/ci.txt's `-r doc.txt` chain (extra Sphinx weight);
+      # tests don't need Sphinx.
       - run: python -m pip install -r requirements/ci-wheel.txt setuptools-git==1.2
       - run: python -m pip install --no-build-isolation -e .
       - name: pytest (pure Python)

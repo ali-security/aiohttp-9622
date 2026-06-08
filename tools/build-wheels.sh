@@ -64,6 +64,10 @@ for PYTHON in ${PYTHON_VERSIONS}; do
     echo
     echo -n "Test $PYTHON: "
     /opt/python/${PYTHON}/bin/python -c "import platform; print('Building wheel for {platform} platform.'.format(platform=platform.platform()))"
+    # Pin setuptools<46 first: ci-wheel.txt pulls towncrier 17.8.0 → old
+    # Jinja2 → MarkupSafe 1.0 sdist whose setup.py does `from setuptools
+    # import Feature`, removed in setuptools 46. 45.x still has it.
+    /opt/python/${PYTHON}/bin/pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' 'setuptools<46'
     /opt/python/${PYTHON}/bin/pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -r /io/requirements/ci-wheel.txt
     /opt/python/${PYTHON}/bin/pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' "$package_name" --no-index -f file:///io/dist
     /opt/python/${PYTHON}/bin/py.test /io/tests
