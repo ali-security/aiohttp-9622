@@ -37,11 +37,24 @@ echo
 echo "Bundle external shared libraries into the wheels"
 for whl in /io/dist/${package_name}-*-linux_${arch}.whl; do
     echo "Repairing $whl..."
-    # --plat manylinux1_${arch}: force a single-tag filename. Newer auditwheel
-    # produces a compound tag like `manylinux_2_5_x86_64.manylinux1_x86_64`,
-    # which pip 9.0.1 (downgraded into the test env by ci-wheel.txt) can't
-    # parse, so it then fails to find a matching wheel under file:///io/dist.
     auditwheel repair --plat "manylinux1_${arch}" "$whl" -w /io/dist/
+done
+
+echo
+echo
+echo "Strip PEP 600 manylinux_2_X prefix from auditwheel output filenames"
+# auditwheel still writes a compound platform tag like
+# `manylinux_2_5_x86_64.manylinux1_x86_64` despite `--plat`. That trips up
+# the cleanup glob below (`-manylinux1_` requires a DASH, the compound name
+# has a DOT) and pip 9.0.1 in the test step. Rename to the legacy single
+# tag so everything downstream sees `aiohttp-3.0.8-cpXX-cpXXm-manylinux1_${arch}.whl`.
+for whl in /io/dist/${package_name}-*.manylinux1_${arch}.whl; do
+    [ -e "$whl" ] || continue
+    new=$(echo "$whl" | sed -E "s/-manylinux_[0-9]+_[0-9]+_${arch}\.manylinux1_${arch}\.whl$/-manylinux1_${arch}.whl/")
+    if [ "$whl" != "$new" ]; then
+        echo "Renaming $whl -> $new"
+        mv "$whl" "$new"
+    fi
 done
 
 echo

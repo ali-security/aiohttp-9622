@@ -201,7 +201,7 @@ jobs:
   # macos-14+ (Apple Silicon) can't host Python 3.5/3.6.
   # Produces: cp35 × {10.10, 10.11, 10.12} + cp36 × {10.11, 10.12} = 5 wheels.
   # ---------------------------------------------------------------------------
-  build-macos:
+  # build-macos:
     runs-on: macos-13
     strategy:
       fail-fast: false
