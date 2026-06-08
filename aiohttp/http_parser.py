@@ -712,15 +712,16 @@ class DeflateBuffer:
         # max_length is asked for one byte over the cap so we can detect
         # overflow via the post-decompress length check below — zlib /
         # BrotliDecompressor both stop early when the cap is hit.
+        # Passed positionally because Python 3.5's zlib.Decompress.decompress
+        # uses METH_VARARGS only (the kwarg form lands in 3.7).
         max_length = self._max_decompress_size + 1
         try:
-            chunk = self.decompressor.decompress(chunk, max_length=max_length)
+            chunk = self.decompressor.decompress(chunk, max_length)
         except Exception:
             if not self._started_decoding and self.encoding == 'deflate':
                 self.decompressor = zlib.decompressobj()
                 try:
-                    chunk = self.decompressor.decompress(
-                        chunk, max_length=max_length)
+                    chunk = self.decompressor.decompress(chunk, max_length)
                 except Exception:
                     raise ContentEncodingError(
                         'Can not decode content-encoding: %s' % self.encoding)
