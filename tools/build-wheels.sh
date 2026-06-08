@@ -25,7 +25,12 @@ echo
 echo "Compile wheels"
 for PYTHON in ${PYTHON_VERSIONS}; do
     /opt/python/${PYTHON}/bin/pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -r /io/requirements/wheel.txt
-    /opt/python/${PYTHON}/bin/pip wheel /io/ -w /io/dist/
+    # --no-build-isolation: otherwise pip's PEP 517 isolated env wouldn't
+    # see the Cython we just installed, setup.py would fall back to looking
+    # for prebuilt .c files (not in the tree), ve_build_ext would silently
+    # produce a pure-Python py3-none-any wheel, and auditwheel repair would
+    # then fail because no *-linux_${arch}.whl exists.
+    /opt/python/${PYTHON}/bin/pip wheel --no-build-isolation /io/ -w /io/dist/
 done
 
 echo

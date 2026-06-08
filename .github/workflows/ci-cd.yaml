@@ -55,7 +55,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: python -m pip install -U pip wheel setuptools
-      - run: python -m pip install -r requirements/ci.txt
+      # Pre-install Cython into the env so that --no-build-isolation has
+      # what `setup.py` imports. Build isolation must be disabled because the
+      # PEP 517 isolated env would otherwise pull `setuptools>=40.8.0` from
+      # the 2018-03-13 time-machine index, which only has setuptools <=38.5.2.
+      - run: python -m pip install cython==0.27.3
+      - run: python -m pip install --no-build-isolation -r requirements/ci.txt
       - run: make cov-ci-no-ext
       - run: make cov-ci-aio-debug
       - run: make cov-ci-run
@@ -93,7 +98,13 @@ jobs:
           # Sdist generation doesn't depend on the build interpreter version;
           # any modern Python that satisfies setup.py's >=3.5.3 check works.
           python-version: '3.11'
-      - run: python -m pip install -U pip wheel setuptools cython
+      - run: python -m pip install -U pip wheel setuptools
+      # Pull Cython from real PyPI: the time-machine index only has Cython
+      # 0.27.3 as an sdist, which won't build on Python 3.11.
+      - name: Install Cython (real PyPI)
+        env:
+          PIP_INDEX_URL: https://pypi.org/simple/
+        run: python -m pip install -U cython
       - run: python setup.py sdist --formats=gztar
       - uses: actions/upload-artifact@v4
         with:
