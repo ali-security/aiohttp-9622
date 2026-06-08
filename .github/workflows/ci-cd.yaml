@@ -202,42 +202,42 @@ jobs:
   # Produces: cp35 × {10.10, 10.11, 10.12} + cp36 × {10.11, 10.12} = 5 wheels.
   # ---------------------------------------------------------------------------
   # build-macos:
-    runs-on: macos-13
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - python-version: '3.5'
-            macosx-target: '10.10'
-            plat-tag: '10_10'
-          - python-version: '3.5'
-            macosx-target: '10.11'
-            plat-tag: '10_11'
-          - python-version: '3.5'
-            macosx-target: '10.12'
-            plat-tag: '10_12'
-          - python-version: '3.6'
-            macosx-target: '10.11'
-            plat-tag: '10_11'
-          - python-version: '3.6'
-            macosx-target: '10.12'
-            plat-tag: '10_12'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - run: python -m pip install -U pip wheel setuptools
-      - run: python -m pip install -r requirements/wheel.txt
-      - name: Build wheel (MACOSX_DEPLOYMENT_TARGET=${{ matrix.macosx-target }})
-        env:
-          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macosx-target }}
-        run: python setup.py bdist_wheel
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos-cp${{ matrix.python-version }}-${{ matrix.plat-tag }}
-          path: dist/*-macosx_${{ matrix.plat-tag }}_x86_64.whl
-          if-no-files-found: warn
+  #   runs-on: macos-13
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       include:
+  #         - python-version: '3.5'
+  #           macosx-target: '10.10'
+  #           plat-tag: '10_10'
+  #         - python-version: '3.5'
+  #           macosx-target: '10.11'
+  #           plat-tag: '10_11'
+  #         - python-version: '3.5'
+  #           macosx-target: '10.12'
+  #           plat-tag: '10_12'
+  #         - python-version: '3.6'
+  #           macosx-target: '10.11'
+  #           plat-tag: '10_11'
+  #         - python-version: '3.6'
+  #           macosx-target: '10.12'
+  #           plat-tag: '10_12'
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: ${{ matrix.python-version }}
+  #     - run: python -m pip install -U pip wheel setuptools
+  #     - run: python -m pip install -r requirements/wheel.txt
+  #     - name: Build wheel (MACOSX_DEPLOYMENT_TARGET=${{ matrix.macosx-target }})
+  #       env:
+  #         MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macosx-target }}
+  #       run: python setup.py bdist_wheel
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: macos-cp${{ matrix.python-version }}-${{ matrix.plat-tag }}
+  #         path: dist/*-macosx_${{ matrix.plat-tag }}_x86_64.whl
+  #         if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
   # Collect every wheel + sdist produced by the build jobs into a single
