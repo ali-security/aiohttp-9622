@@ -16,6 +16,17 @@ except ImportError:  # pragma: no cover
     _system_brotli = None  # type: ignore[assignment]
 
 
+# The vendored brotli C extension is marked optional in setup.py — it can
+# legitimately be absent on toolchains where it doesn't compile (e.g.
+# manylinux1 / editable install on windows without MSVC). Skip the tests
+# that exercise it when it's not present rather than failing collection.
+try:
+    from aiohttp._vendored import _brotli as _vendored_brotli_c  # noqa: F401
+    _HAS_VENDORED_BROTLI = True
+except ImportError:  # pragma: no cover
+    _HAS_VENDORED_BROTLI = False
+
+
 def _run_py(code: str) -> "subprocess.CompletedProcess[str]":
     return subprocess.run(
         [sys.executable, "-c", textwrap.dedent(code)],
@@ -26,8 +37,14 @@ def _run_py(code: str) -> "subprocess.CompletedProcess[str]":
 
 
 def _ver(mod: object) -> "tuple[int, int]":
-    parts = mod.__version__.split(".")[:2]  # type: ignore[attr-defined]
-    return (int(parts[0]), int(parts[1]))
+    # brotlipy exposes itself as `brotli` but has no `__version__`; treat
+    # any module we can't parse a version out of as (0, 0) so the skipif
+    # checks below collect cleanly instead of crashing the file at import.
+    try:
+        parts = mod.__version__.split(".")[:2]  # type: ignore[attr-defined]
+        return (int(parts[0]), int(parts[1]))
+    except (AttributeError, ValueError, TypeError):  # pragma: no cover
+        return (0, 0)
 
 
 @pytest.mark.skipif(not HAS_BROTLI, reason="brotli is not installed")
@@ -38,7 +55,10 @@ def test_system_brotli_is_module_of_record() -> None:
     assert not _brotli.__name__.startswith("aiohttp._vendored")
 
 
-@pytest.mark.skipif(not HAS_BROTLI, reason="brotli is not installed")
+@pytest.mark.skipif(
+    not HAS_BROTLI or not _HAS_VENDORED_BROTLI,
+    reason="requires the vendored _brotli C extension to be built",
+)
 def test_brotli_decompressor_is_at_least_1_2() -> None:
     from aiohttp.http_parser import _brotli_decompressor
 
@@ -46,7 +66,10 @@ def test_brotli_decompressor_is_at_least_1_2() -> None:
     assert _ver(_brotli_decompressor) >= (1, 2), _brotli_decompressor.__version__
 
 
-@pytest.mark.skipif(not HAS_BROTLI, reason="brotli is not installed")
+@pytest.mark.skipif(
+    not HAS_BROTLI or not _HAS_VENDORED_BROTLI,
+    reason="requires the vendored _brotli C extension to enforce the cap",
+)
 def test_brotli_bomb_is_capped() -> None:
     from aiohttp.http_parser import _brotli
 
@@ -64,8 +87,11 @@ def test_brotli_bomb_is_capped() -> None:
 
 
 @pytest.mark.skipif(
-    _system_brotli is None or _ver(_system_brotli) >= (1, 2),
-    reason="requires an OLD (<1.2) system brotli to prove the vendored fallback",
+    _system_brotli is None
+    or _ver(_system_brotli) >= (1, 2)
+    or not _HAS_VENDORED_BROTLI,
+    reason="requires an OLD (<1.2) system brotli AND a built vendored brotli "
+    "to prove the vendored fallback",
 )
 def test_old_system_brotli_uses_vendored_decompressor() -> None:
     from aiohttp.http_parser import _brotli, _brotli_decompressor

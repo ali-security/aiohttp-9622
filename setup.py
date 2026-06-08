@@ -69,6 +69,10 @@ _brotli_extension = Extension(
     'aiohttp._vendored._brotli',
     sources=_brotli_sources,
     include_dirs=[_BROTLI_VENDOR + '/c/include'],
+    # Don't take down the whole wheel if the vendored brotli sources fail to
+    # compile (e.g. on the manylinux1 toolchain). _import_vendored_brotli()
+    # catches the resulting ImportError and falls back to the system brotli.
+    optional=True,
 )
 
 
@@ -105,6 +109,12 @@ class ve_build_ext(build_ext):
             build_ext.build_extension(self, ext)
         except (CCompilerError, DistutilsExecError,
                 DistutilsPlatformError, ValueError):
+            # Honor Extension(..., optional=True): drop just this module
+            # instead of failing the whole wheel.
+            if getattr(ext, 'optional', False):
+                self.warn(
+                    'optional extension %s failed to build; skipping' % ext.name)
+                return
             raise BuildFailed()
 
 

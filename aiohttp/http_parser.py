@@ -48,7 +48,13 @@ def _brotli_has_max_length_cap(mod):
 def _import_vendored_brotli():
     if platform.python_implementation() != 'CPython':  # pragma: no cover
         return _brotli
-    from ._vendored import brotli as vendored_brotli
+    try:
+        from ._vendored import brotli as vendored_brotli
+    except ImportError:  # pragma: no cover
+        # The vendored _brotli C extension is marked optional in setup.py;
+        # if it failed to compile we just stick with the system brotli (the
+        # max_length cap downstream will be silently a no-op for it).
+        return _brotli
     return vendored_brotli
 
 
@@ -79,8 +85,17 @@ class BrotliDecompressor:
 
     def decompress(self, data, max_length=0):
         if hasattr(self._obj, 'decompress'):
-            return self._obj.decompress(data, max_length)
-        return self._obj.process(data, max_length)
+            try:
+                return self._obj.decompress(data, max_length)
+            except TypeError:
+                # Old brotli (<1.2) / brotlipy don't accept max_length.
+                # The downstream length check in DeflateBuffer.feed_data
+                # still trips the cap when the cumulative chunks exceed it.
+                return self._obj.decompress(data)
+        try:
+            return self._obj.process(data, max_length)
+        except TypeError:
+            return self._obj.process(data)
 
     def flush(self):
         if hasattr(self._obj, 'flush'):
