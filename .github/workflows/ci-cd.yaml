@@ -38,7 +38,11 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Linux tests (Travis: default matrix, runs `make cov-ci-*`)
+  # Linux tests (Travis: default matrix, runs `make cov-ci-*`).
+  # Python 3.5/3.6 were dropped from actions/setup-python on ubuntu-22.04 and
+  # ubuntu-20.04 is retired, so the tests run inside the official python:3.5
+  # / python:3.6 Docker images. Those base on Debian Stretch (glibc 2.24),
+  # which can't run Node 20 — hence checkout@v3 (Node 16) is pinned.
   # ---------------------------------------------------------------------------
   test-linux:
     runs-on: ubuntu-22.04
@@ -46,11 +50,10 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ['3.5', '3.6']
+    container:
+      image: python:${{ matrix.python-version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
+      - uses: actions/checkout@v3
       - run: python -m pip install -U pip wheel setuptools
       - run: python -m pip install -r requirements/ci.txt
       - run: make cov-ci-no-ext
@@ -87,7 +90,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.6'
+          # Sdist generation doesn't depend on the build interpreter version;
+          # any modern Python that satisfies setup.py's >=3.5.3 check works.
+          python-version: '3.11'
       - run: python -m pip install -U pip wheel setuptools cython
       - run: python setup.py sdist --formats=gztar
       - uses: actions/upload-artifact@v4
