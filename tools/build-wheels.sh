@@ -25,12 +25,11 @@ echo
 echo "Compile wheels"
 for PYTHON in ${PYTHON_VERSIONS}; do
     /opt/python/${PYTHON}/bin/pip install --index-url 'https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/' -r /io/requirements/wheel.txt
-    # --no-build-isolation: otherwise pip's PEP 517 isolated env wouldn't
-    # see the Cython we just installed, setup.py would fall back to looking
-    # for prebuilt .c files (not in the tree), ve_build_ext would silently
-    # produce a pure-Python py3-none-any wheel, and auditwheel repair would
-    # then fail because no *-linux_${arch}.whl exists.
-    /opt/python/${PYTHON}/bin/pip wheel --no-build-isolation /io/ -w /io/dist/
+    # wheel.txt pins pip==9.0.1 transitively via the time-machine resolution,
+    # but the manylinux1 image's preinstalled pip (20.x) hasn't been touched
+    # yet at this point; it uses legacy setup.py builds for /io/, which
+    # picks up the Cython installed above directly.
+    /opt/python/${PYTHON}/bin/pip wheel /io/ -w /io/dist/
 done
 
 echo
@@ -38,7 +37,11 @@ echo
 echo "Bundle external shared libraries into the wheels"
 for whl in /io/dist/${package_name}-*-linux_${arch}.whl; do
     echo "Repairing $whl..."
-    auditwheel repair "$whl" -w /io/dist/
+    # --plat manylinux1_${arch}: force a single-tag filename. Newer auditwheel
+    # produces a compound tag like `manylinux_2_5_x86_64.manylinux1_x86_64`,
+    # which pip 9.0.1 (downgraded into the test env by ci-wheel.txt) can't
+    # parse, so it then fails to find a matching wheel under file:///io/dist.
+    auditwheel repair --plat "manylinux1_${arch}" "$whl" -w /io/dist/
 done
 
 echo

@@ -61,15 +61,15 @@ jobs:
       # Feature`. `Feature` was removed in setuptools 46. 45.x is the last
       # series with it and the last to support Python 3.5.
       - run: python -m pip install 'setuptools<46'
-      # Pre-install Cython into the env so that --no-build-isolation has
-      # what `setup.py` imports. Build isolation must be disabled because the
-      # PEP 517 isolated env would otherwise pull `setuptools>=40.8.0` from
-      # the 2018-03-13 time-machine index, which only has setuptools <=38.5.2.
+      # Pre-install Cython into the env so setup.py can pick it up.
       - run: python -m pip install cython==0.27.3
       # Skip requirements/ci.txt's `-r doc.txt` chain (extra Sphinx weight);
-      # tests don't need Sphinx.
+      # tests don't need Sphinx. ci-wheel.txt pins pip==9.0.1, which uses
+      # legacy setup.py builds (no PEP 517 isolation), so the parent env's
+      # Cython is visible directly to setup.py — no --no-build-isolation
+      # needed.
       - run: python -m pip install -r requirements/ci-wheel.txt setuptools-git==1.2
-      - run: python -m pip install --no-build-isolation -e .
+      - run: python -m pip install -e .
       - name: pytest (pure Python)
         env:
           AIOHTTP_NO_EXTENSIONS: '1'

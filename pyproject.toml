@@ -1,3 +1,11 @@
+[build-system]
+# Modern pip enables PEP 517 isolation whenever pyproject.toml exists, so
+# the build env needs to know it wants Cython — otherwise setup.py falls
+# back to looking for prebuilt .c files (not in the tree) and ve_build_ext
+# silently produces a pure-Python wheel.
+requires = ["setuptools", "wheel", "cython==0.27.3"]
+build-backend = "setuptools.build_meta"
+
 [tool.towncrier]
 package = "aiohttp"
 filename = "CHANGES.rst"
