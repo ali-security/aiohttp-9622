@@ -113,6 +113,18 @@ jobs:
         architecture: [x86, x64]
     steps:
       - uses: actions/checkout@v4
+      # actions/checkout runs git on Windows with the default core.autocrlf=true,
+      # so text fixtures get CRLF line endings. Several tests
+      # (test_urldispatch.py::test_add_static_append_version*) SHA256-hash
+      # tests/data.unknown_mime_type and compare to a hardcoded hash of the LF
+      # bytes — those fail only on Windows. Force LF by re-extracting the
+      # working tree with autocrlf disabled.
+      - name: Re-extract working tree with LF line endings
+        shell: bash
+        run: |
+          git config core.autocrlf false
+          git rm --cached -rq .
+          git reset --hard HEAD
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
