@@ -113,40 +113,38 @@ jobs:
         architecture: [x86, x64]
     steps:
       - uses: actions/checkout@v4
-      # actions/checkout runs git on Windows with the default core.autocrlf=true,
-      # so text fixtures get CRLF line endings. Several tests
-      # (test_urldispatch.py::test_add_static_append_version*) SHA256-hash
-      # tests/data.unknown_mime_type and compare to a hardcoded hash of the LF
-      # bytes — those fail only on Windows. Force LF by re-extracting the
-      # working tree with autocrlf disabled.
-      - name: Re-extract working tree with LF line endings
+      # actions/checkout on Windows runs with core.autocrlf=true, so text
+      # fixtures land with CRLF endings. test_urldispatch.py's
+      # test_add_static_append_version* tests SHA256-hash
+      # tests/data.unknown_mime_type and compare to a hardcoded hash of the
+      # LF bytes. Strip CR bytes directly so the hash matches.
+      - name: Strip CRLF from hashed test fixtures
         shell: bash
-        run: |
-          git config core.autocrlf false
-          git rm --cached -rq .
-          git reset --hard HEAD
+        run: tr -d '\r' < tests/data.unknown_mime_type > tests/data.unknown_mime_type.lf && mv tests/data.unknown_mime_type.lf tests/data.unknown_mime_type
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.architecture }}
       - run: python -m pip install -U pip wheel setuptools
       - run: python -m pip install -r requirements/ci.txt
-      # pytest-timeout: each test gets killed after 60s so a single stuck
-      # test (test_client_functional.py has a few that hang on Windows under
-      # --aiohttp-loop=all) doesn't burn the whole job's runtime.
-      - run: python -m pip install pytest-timeout
       # --ignore the *_functional.py suites on Windows:
       # they spin up real localhost HTTP/WS servers and connect to them via
       # asyncio's selector loop. aiohttp 3.0.8's selector loop assumptions
       # don't survive modern Windows TCP behavior (Winsock 10 / windows-2022
-      # runners), so multiple tests hang in select.select() until
-      # pytest-timeout kills them, then the whole job is marked failed.
-      # Same pattern in test_client_ws_functional, test_web_functional, and
-      # test_proxy_functional — all networking integration suites with the
-      # same Windows issue. The unit tests (parsers, helpers, dispatch,
-      # streams, etc.) still run and gate this job.
+      # runners), so multiple tests hang in select.select(). Same pattern in
+      # test_client_ws_functional, test_web_functional, test_proxy_functional
+      # — all networking integration suites with the same Windows issue. The
+      # unit tests (parsers, helpers, dispatch, streams, etc.) still run.
+      #
+      # Not installing pytest-timeout: it ships with a `addoption(type='choice')`
+      # call that raises DeprecationWarning on modern pytest, and pytest.ini
+      # has `filterwarnings = error`. Tests in test_pytest_plugin.py /
+      # test_test_utils.py spawn inline pytest sessions via testdir.runpytest,
+      # which inherits the loaded plugins and fails to start. Since the only
+      # tests that hung were the *_functional suites we now ignore, there's
+      # nothing left to timeout.
       - run: >-
-          python -m pytest tests --timeout=60
+          python -m pytest tests
           --ignore=tests/test_client_functional.py
           --ignore=tests/test_client_ws_functional.py
           --ignore=tests/test_web_functional.py
