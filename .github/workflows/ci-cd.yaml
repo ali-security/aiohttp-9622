@@ -1,0 +1,270 @@
+name: CI/CD
+
+# Replaces the legacy .travis.yml (Linux/macOS test + manylinux1 + macOS
+# wheels) and .appveyor.yml (Windows test + wheels) for aiohttp 3.0.8.
+#
+# Target artifacts (uploaded under `dist/` on every successful run and
+# published to PyPI on tag pushes):
+#   aiohttp-3.0.8.tar.gz
+#   aiohttp-3.0.8-cp35-cp35m-manylinux1_{i686,x86_64}.whl
+#   aiohttp-3.0.8-cp36-cp36m-manylinux1_{i686,x86_64}.whl
+#   aiohttp-3.0.8-cp35-cp35m-win32.whl
+#   aiohttp-3.0.8-cp35-cp35m-win_amd64.whl
+#   aiohttp-3.0.8-cp36-cp36m-win32.whl
+#   aiohttp-3.0.8-cp36-cp36m-win_amd64.whl
+#   aiohttp-3.0.8-cp35-cp35m-macosx_10_{10,11,12}_x86_64.whl
+#   aiohttp-3.0.8-cp36-cp36m-macosx_10_{11,12}_x86_64.whl
+#
+# Caveat: Python 3.5 / 3.6 are EOL. actions/setup-python still publishes
+# them, but only on x86_64 runner images (ubuntu-*, windows-*, macos-13).
+# Apple Silicon runners (macos-14+) cannot host them.
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*', '[0-9]+.[0-9]+.[0-9]+']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Seal time-machine PyPI index — pins transitive deps to 2018-03-13,
+  # matching the aiohttp 3.0.8 release era. Mirrors the Makefile.
+  PIP_INDEX_URL: https://:2018-03-13T09:30:47.597421Z@time-machines-pypi.sealsecurity.io/
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Lint + metadata check (Travis: `_lint_base` jobs)
+  # ---------------------------------------------------------------------------
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.6'
+      - run: python -m pip install -U pip wheel setuptools
+      - run: python -m pip install -r requirements/ci.txt
+      - run: flake8 aiohttp examples tests demos
+      - run: python setup.py check --metadata --restructuredtext --strict --verbose
+      - run: ./tools/check_changes.py
+
+  # ---------------------------------------------------------------------------
+  # Linux tests (Travis: default matrix, runs `make cov-ci-*`)
+  # ---------------------------------------------------------------------------
+  test-linux:
+    runs-on: ubuntu-22.04
+    needs: [lint]
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.5', '3.6']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -U pip wheel setuptools
+      - run: python -m pip install -r requirements/ci.txt
+      - run: make cov-ci-no-ext
+      - run: make cov-ci-aio-debug
+      - run: make cov-ci-run
+
+  # ---------------------------------------------------------------------------
+  # Windows tests (AppVeyor: matrix of Python35/35-x64/36/36-x64)
+  # ---------------------------------------------------------------------------
+  test-windows:
+    runs-on: windows-2022
+    needs: [lint]
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.5', '3.6']
+        architecture: [x86, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: ${{ matrix.architecture }}
+      - run: python -m pip install -U pip wheel setuptools
+      - run: python -m pip install -r requirements/ci.txt
+      - run: python setup.py test
+
+  # ---------------------------------------------------------------------------
+  # Source distribution (Travis: deploy step, distribution: sdist)
+  # Produces: aiohttp-3.0.8.tar.gz
+  # ---------------------------------------------------------------------------
+  build-sdist:
+    runs-on: ubuntu-22.04
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.6'
+      - run: python -m pip install -U pip wheel setuptools cython
+      - run: python setup.py sdist --formats=gztar
+      - name: Verify expected sdist exists
+        run: test -f dist/aiohttp-3.0.8.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/aiohttp-3.0.8.tar.gz
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # manylinux1 wheels via the existing Docker scripts (Travis: run_docker.sh).
+  # Produces 4 wheels: cp35/cp36 × i686/x86_64.
+  # ---------------------------------------------------------------------------
+  build-manylinux1:
+    runs-on: ubuntu-22.04
+    needs: [lint]
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, i686]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable multi-arch userspace (for i686)
+        if: matrix.arch == 'i686'
+        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+      - name: Build manylinux1 wheels (${{ matrix.arch }})
+        run: |
+          mkdir -p dist
+          pre=""
+          if [ "${{ matrix.arch }}" = "i686" ]; then pre="linux32"; fi
+          docker run --rm -v "$PWD":/io \
+            "quay.io/pypa/manylinux1_${{ matrix.arch }}" \
+            $pre /io/tools/build-wheels.sh aiohttp
+      - name: Verify expected wheels exist
+        run: |
+          test -f dist/aiohttp-3.0.8-cp35-cp35m-manylinux1_${{ matrix.arch }}.whl
+          test -f dist/aiohttp-3.0.8-cp36-cp36m-manylinux1_${{ matrix.arch }}.whl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manylinux1-${{ matrix.arch }}
+          path: dist/aiohttp-3.0.8-*-manylinux1_${{ matrix.arch }}.whl
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Windows wheels (AppVeyor: after_test `setup.py sdist bdist_wheel`).
+  # Produces 4 wheels: cp35/cp36 × win32/win_amd64.
+  # ---------------------------------------------------------------------------
+  build-windows:
+    runs-on: windows-2022
+    needs: [lint]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: '3.5'
+            architecture: x86
+            plat-tag: win32
+          - python-version: '3.5'
+            architecture: x64
+            plat-tag: win_amd64
+          - python-version: '3.6'
+            architecture: x86
+            plat-tag: win32
+          - python-version: '3.6'
+            architecture: x64
+            plat-tag: win_amd64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: ${{ matrix.architecture }}
+      - run: python -m pip install -U pip wheel setuptools
+      - run: python -m pip install -r requirements/wheel.txt
+      - run: python setup.py bdist_wheel
+      - name: Verify expected wheel exists
+        shell: bash
+        run: |
+          tag="cp$(echo ${{ matrix.python-version }} | tr -d .)"
+          ls dist/aiohttp-3.0.8-${tag}-${tag}m-${{ matrix.plat-tag }}.whl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-cp${{ matrix.python-version }}-${{ matrix.plat-tag }}
+          path: dist/aiohttp-3.0.8-cp*-${{ matrix.plat-tag }}.whl
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # macOS wheels (Travis: osx_pypi_deploy_base_10{10,11,12}).
+  # Platform tag is driven by MACOSX_DEPLOYMENT_TARGET, not the runner OS,
+  # so a single macos-13 (Intel) image produces all 5 wheels.
+  # macos-14+ (Apple Silicon) can't host Python 3.5/3.6.
+  # Produces: cp35 × {10.10, 10.11, 10.12} + cp36 × {10.11, 10.12} = 5 wheels.
+  # ---------------------------------------------------------------------------
+  build-macos:
+    runs-on: macos-13
+    needs: [lint]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: '3.5'
+            macosx-target: '10.10'
+            plat-tag: '10_10'
+          - python-version: '3.5'
+            macosx-target: '10.11'
+            plat-tag: '10_11'
+          - python-version: '3.5'
+            macosx-target: '10.12'
+            plat-tag: '10_12'
+          - python-version: '3.6'
+            macosx-target: '10.11'
+            plat-tag: '10_11'
+          - python-version: '3.6'
+            macosx-target: '10.12'
+            plat-tag: '10_12'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -U pip wheel setuptools
+      - run: python -m pip install -r requirements/wheel.txt
+      - name: Build wheel (MACOSX_DEPLOYMENT_TARGET=${{ matrix.macosx-target }})
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macosx-target }}
+        run: python setup.py bdist_wheel
+      - name: Verify expected wheel exists
+        run: |
+          tag="cp$(echo ${{ matrix.python-version }} | tr -d .)"
+          ls dist/aiohttp-3.0.8-${tag}-${tag}m-macosx_${{ matrix.plat-tag }}_x86_64.whl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-cp${{ matrix.python-version }}-${{ matrix.plat-tag }}
+          path: dist/aiohttp-3.0.8-cp*-macosx_${{ matrix.plat-tag }}_x86_64.whl
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Collect every wheel + sdist produced by the build jobs into a single
+  # workflow-run artifact named `aiohttp-3.0.8-dist`, so the whole set is
+  # downloadable from the Actions run page in one click.
+  # ---------------------------------------------------------------------------
+  collect:
+    if: always()
+    needs:
+      - build-sdist
+      - build-manylinux1
+      - build-windows
+      - build-macos
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aiohttp-3.0.8-dist
+          path: dist/*
+          if-no-files-found: warn
