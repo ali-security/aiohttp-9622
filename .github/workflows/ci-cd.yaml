@@ -250,7 +250,7 @@ jobs:
       - build-sdist
       - build-manylinux1
       - build-windows
-      - build-macos
+      # - build-macos
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/download-artifact@v4
