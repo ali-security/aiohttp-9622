@@ -50,7 +50,9 @@ echo "Strip PEP 600 manylinux_2_X prefix from auditwheel output filenames"
 # tag so everything downstream sees `aiohttp-3.0.8-cpXX-cpXXm-manylinux1_${arch}.whl`.
 for whl in /io/dist/${package_name}-*.manylinux1_${arch}.whl; do
     [ -e "$whl" ] || continue
-    new=$(echo "$whl" | sed -E "s/-manylinux_[0-9]+_[0-9]+_${arch}\.manylinux1_${arch}\.whl$/-manylinux1_${arch}.whl/")
+    # Bash parameter expansion (no sed): the `*` is a shell glob that
+    # consumes the `2_5` (or whatever PEP 600 version auditwheel emits).
+    new="${whl/-manylinux_*_${arch}.manylinux1_${arch}.whl/-manylinux1_${arch}.whl}"
     if [ "$whl" != "$new" ]; then
         echo "Renaming $whl -> $new"
         mv "$whl" "$new"
