@@ -14,6 +14,9 @@ if sys.version_info < (3, 5, 3):
     raise RuntimeError("aiohttp 3.x requires Python 3.5.3+")
 
 
+IS_CPYTHON = sys.implementation.name == "cpython"
+
+
 try:
     from Cython.Build import cythonize
     USE_CYTHON = True
@@ -23,6 +26,52 @@ except ImportError:
 ext = '.pyx' if USE_CYTHON else '.c'
 
 
+_BROTLI_VENDOR = 'aiohttp/_vendored/brotli_src'
+_brotli_sources = [
+    _BROTLI_VENDOR + '/python/_brotli.c',
+    _BROTLI_VENDOR + '/c/common/constants.c',
+    _BROTLI_VENDOR + '/c/common/context.c',
+    _BROTLI_VENDOR + '/c/common/dictionary.c',
+    _BROTLI_VENDOR + '/c/common/platform.c',
+    _BROTLI_VENDOR + '/c/common/shared_dictionary.c',
+    _BROTLI_VENDOR + '/c/common/transform.c',
+    _BROTLI_VENDOR + '/c/dec/bit_reader.c',
+    _BROTLI_VENDOR + '/c/dec/decode.c',
+    _BROTLI_VENDOR + '/c/dec/huffman.c',
+    _BROTLI_VENDOR + '/c/dec/prefix.c',
+    _BROTLI_VENDOR + '/c/dec/state.c',
+    _BROTLI_VENDOR + '/c/dec/static_init.c',
+    _BROTLI_VENDOR + '/c/enc/backward_references.c',
+    _BROTLI_VENDOR + '/c/enc/backward_references_hq.c',
+    _BROTLI_VENDOR + '/c/enc/bit_cost.c',
+    _BROTLI_VENDOR + '/c/enc/block_splitter.c',
+    _BROTLI_VENDOR + '/c/enc/brotli_bit_stream.c',
+    _BROTLI_VENDOR + '/c/enc/cluster.c',
+    _BROTLI_VENDOR + '/c/enc/command.c',
+    _BROTLI_VENDOR + '/c/enc/compound_dictionary.c',
+    _BROTLI_VENDOR + '/c/enc/compress_fragment.c',
+    _BROTLI_VENDOR + '/c/enc/compress_fragment_two_pass.c',
+    _BROTLI_VENDOR + '/c/enc/dictionary_hash.c',
+    _BROTLI_VENDOR + '/c/enc/encode.c',
+    _BROTLI_VENDOR + '/c/enc/encoder_dict.c',
+    _BROTLI_VENDOR + '/c/enc/entropy_encode.c',
+    _BROTLI_VENDOR + '/c/enc/fast_log.c',
+    _BROTLI_VENDOR + '/c/enc/histogram.c',
+    _BROTLI_VENDOR + '/c/enc/literal_cost.c',
+    _BROTLI_VENDOR + '/c/enc/memory.c',
+    _BROTLI_VENDOR + '/c/enc/metablock.c',
+    _BROTLI_VENDOR + '/c/enc/static_dict.c',
+    _BROTLI_VENDOR + '/c/enc/static_dict_lut.c',
+    _BROTLI_VENDOR + '/c/enc/static_init.c',
+    _BROTLI_VENDOR + '/c/enc/utf8_util.c',
+]
+_brotli_extension = Extension(
+    'aiohttp._vendored._brotli',
+    sources=_brotli_sources,
+    include_dirs=[_BROTLI_VENDOR + '/c/include'],
+)
+
+
 extensions = [Extension('aiohttp._websocket', ['aiohttp/_websocket' + ext]),
               Extension('aiohttp._http_parser',
                         ['aiohttp/_http_parser' + ext,
@@ -30,7 +79,8 @@ extensions = [Extension('aiohttp._websocket', ['aiohttp/_websocket' + ext]),
                         define_macros=[('HTTP_PARSER_STRICT', 0)],
                         ),
               Extension('aiohttp._frozenlist',
-                        ['aiohttp/_frozenlist' + ext])]
+                        ['aiohttp/_frozenlist' + ext]),
+              _brotli_extension]
 
 
 if USE_CYTHON:
@@ -134,6 +184,19 @@ except BuildFailed:
     print("************************************************************")
     print("Cannot compile C accelerator module, use pure python version")
     print("************************************************************")
-    del args['ext_modules']
-    del args['cmdclass']
-    setup(**args)
+    # Mirror upstream's intent: keep the vendored brotli extension
+    # whenever we're on CPython. The aiohttp _vendored.brotli module
+    # imports _brotli at runtime, so dropping it would break imports
+    # rather than gracefully degrading.
+    if IS_CPYTHON:
+        args['ext_modules'] = [_brotli_extension]
+        try:
+            setup(**args)
+        except BuildFailed:
+            del args['ext_modules']
+            del args['cmdclass']
+            setup(**args)
+    else:
+        del args['ext_modules']
+        del args['cmdclass']
+        setup(**args)

@@ -17,11 +17,75 @@ from .log import internal_logger
 from .streams import EMPTY_PAYLOAD, StreamReader
 
 
-try:
-    import brotli
-    HAS_BROTLI = True
-except ImportError:  # pragma: no cover
-    HAS_BROTLI = False
+import importlib
+import importlib.util
+import platform
+
+
+def _import_system_brotli():
+    for name in ('brotlicffi', 'brotli'):
+        try:
+            if importlib.util.find_spec(name) is None:
+                continue
+        except (ImportError, ValueError):  # pragma: no cover
+            continue
+        try:
+            return importlib.import_module(name)
+        except Exception:  # pragma: no cover
+            return None
+    return None
+
+
+def _brotli_has_max_length_cap(mod):
+    try:
+        return tuple(
+            int(p) for p in mod.__version__.split('.')[:2]
+        ) >= (1, 2)
+    except Exception:  # pragma: no cover
+        return False
+
+
+def _import_vendored_brotli():
+    if platform.python_implementation() != 'CPython':  # pragma: no cover
+        return _brotli
+    from ._vendored import brotli as vendored_brotli
+    return vendored_brotli
+
+
+_brotli = _import_system_brotli()
+HAS_BROTLI = _brotli is not None
+
+if _brotli is not None and not _brotli_has_max_length_cap(_brotli):
+    # System brotli predates the max_length cap added in 1.2 — fall back to
+    # the in-tree vendored copy (which is current and supports max_length)
+    # so the decompression-bomb guard below actually works.
+    _brotli_decompressor = _import_vendored_brotli()
+else:
+    _brotli_decompressor = _brotli
+
+DEFAULT_MAX_DECOMPRESS_SIZE = 2 ** 25  # 32 MiB
+
+
+class BrotliDecompressor:
+    # Supports both 'brotlicffi' / 'Brotli' (decompress) and 'brotlipy'
+    # (process), matching whichever decompressor was selected above.
+
+    def __init__(self):
+        if not HAS_BROTLI or _brotli_decompressor is None:  # pragma: no cover
+            raise ContentEncodingError(
+                'Can not decode content-encoding: brotli (br). '
+                'Please install `Brotli`')
+        self._obj = _brotli_decompressor.Decompressor()
+
+    def decompress(self, data, max_length=0):
+        if hasattr(self._obj, 'decompress'):
+            return self._obj.decompress(data, max_length)
+        return self._obj.process(data, max_length)
+
+    def flush(self):
+        if hasattr(self._obj, 'flush'):
+            return self._obj.flush()
+        return b''
 
 
 __all__ = (
@@ -606,18 +670,20 @@ class HttpPayloadParser:
 class DeflateBuffer:
     """DeflateStream decompress stream and feed data into specified stream."""
 
-    def __init__(self, out, encoding):
+    def __init__(self, out, encoding,
+                 max_decompress_size=DEFAULT_MAX_DECOMPRESS_SIZE):
         self.out = out
         self.size = 0
         self.encoding = encoding
         self._started_decoding = False
+        self._max_decompress_size = max_decompress_size
 
         if encoding == 'br':
             if not HAS_BROTLI:  # pragma: no cover
                 raise ContentEncodingError(
                     'Can not decode content-encoding: brotli (br). '
-                    'Please install `brotlipy`')
-            self.decompressor = brotli.Decompressor()
+                    'Please install `Brotli`')
+            self.decompressor = BrotliDecompressor()
         else:
             zlib_mode = (16 + zlib.MAX_WBITS
                          if encoding == 'gzip' else -zlib.MAX_WBITS)
@@ -628,19 +694,29 @@ class DeflateBuffer:
 
     def feed_data(self, chunk, size):
         self.size += size
+        # max_length is asked for one byte over the cap so we can detect
+        # overflow via the post-decompress length check below — zlib /
+        # BrotliDecompressor both stop early when the cap is hit.
+        max_length = self._max_decompress_size + 1
         try:
-            chunk = self.decompressor.decompress(chunk)
+            chunk = self.decompressor.decompress(chunk, max_length=max_length)
         except Exception:
             if not self._started_decoding and self.encoding == 'deflate':
                 self.decompressor = zlib.decompressobj()
                 try:
-                    chunk = self.decompressor.decompress(chunk)
+                    chunk = self.decompressor.decompress(
+                        chunk, max_length=max_length)
                 except Exception:
                     raise ContentEncodingError(
                         'Can not decode content-encoding: %s' % self.encoding)
             else:
                 raise ContentEncodingError(
                     'Can not decode content-encoding: %s' % self.encoding)
+
+        if len(chunk) > self._max_decompress_size:
+            raise ContentEncodingError(
+                'Decompressed data exceeds the configured limit of %d bytes'
+                % self._max_decompress_size)
 
         if chunk:
             self._started_decoding = True

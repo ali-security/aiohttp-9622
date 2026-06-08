@@ -48,3 +48,5 @@ virtualenv.py
 .flake
 .python-version
 .pytest_cache
+!aiohttp/_vendored/**/
+!aiohttp/_vendored/**

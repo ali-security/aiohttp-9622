@@ -790,4 +790,39 @@ class TestDeflateBuffer(unittest.TestCase):
         dbuf = DeflateBuffer(buf, 'deflate')
         dbuf.feed_eof()
 
+    def test_decompress_size_limit(self):
+        # A 1 MiB payload of 'A's compresses to a few KB, so feeding it
+        # through a DeflateBuffer with a 1 KiB cap must raise.
+        buf = aiohttp.FlowControlDataQueue(self.stream)
+        dbuf = DeflateBuffer(buf, 'deflate', max_decompress_size=1024)
+
+        original = b'A' * (2 ** 20)
+        compressed = zlib.compress(original)
+
+        self.assertRaises(
+            http_exceptions.ContentEncodingError,
+            dbuf.feed_data, compressed, len(compressed))
+
+    def test_streaming_decompress_large_payload(self):
+        # A 3 MiB payload fed in increasing chunk sizes must round-trip
+        # cleanly (i.e. the max_length-capped decompress loop in
+        # DeflateBuffer.feed_data handles partial reads correctly).
+        original = b'A' * (3 * 2 ** 20)
+        compressed = zlib.compress(original)
+
+        for chunk_size in (1024, 2 ** 14, 2 ** 16):
+            with self.subTest(chunk_size=chunk_size):
+                buf = aiohttp.FlowControlDataQueue(self.stream)
+                dbuf = DeflateBuffer(buf, 'deflate')
+
+                for i in range(0, len(compressed), chunk_size):
+                    chunk = compressed[i:i + chunk_size]
+                    dbuf.feed_data(chunk, len(chunk))
+
+                dbuf.feed_eof()
+
+                result = b''.join(d for d, _ in buf._buffer)
+                self.assertEqual(len(result), len(original))
+                self.assertEqual(result, original)
+
         self.assertTrue(buf.at_eof())
